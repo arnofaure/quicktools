@@ -242,6 +242,8 @@
   #cmp-tagA { left: 10px; } #cmp-tagB { right: 10px; }
   #cmp-slider { width: 100%; margin-top: 16px; accent-color: var(--text); }
   #cmp-slider:disabled { opacity: 0.35; }
+  #cmp-opacity { width: 100%; accent-color: var(--text); }
+  #cmp-opacity:disabled { opacity: 0.35; }
 
   /* ---------- TOOL: Image to GIF (reused) ---------- */
   #list { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-direction: column; gap: 6px; }
@@ -414,6 +416,11 @@
       </div>
 
       <input type="range" id="cmp-slider" min="0" max="100" value="50" disabled>
+
+      <div class="field" id="cmp-opacity-field" style="margin-top:14px;">
+        <label for="cmp-opacity">Image B opacity — <span id="cmp-opacity-value">100</span>%</label>
+        <input type="range" id="cmp-opacity" min="0" max="100" value="100" disabled>
+      </div>
     </section>
 
     <!-- ================= TOOL: Image to GIF ================= -->
@@ -526,6 +533,8 @@
   const tagB = document.getElementById('cmp-tagB');
   const nameA = document.getElementById('cmp-fileA-name');
   const nameB = document.getElementById('cmp-fileB-name');
+  const opacitySlider = document.getElementById('cmp-opacity');
+  const opacityValue = document.getElementById('cmp-opacity-value');
 
   let loadedA = false, loadedB = false;
 
@@ -539,9 +548,16 @@
       tagA.style.display = 'block';
       tagB.style.display = 'block';
       slider.disabled = false;
+      opacitySlider.disabled = false;
       syncWidth();
       updatePosition(slider.value);
+      updateOpacity(opacitySlider.value);
     }
+  }
+
+  function updateOpacity(percent) {
+    imgB.style.opacity = percent / 100;
+    opacityValue.textContent = Math.round(percent);
   }
 
   function syncWidth() {
@@ -571,6 +587,7 @@
   });
 
   slider.addEventListener('input', () => updatePosition(slider.value));
+  opacitySlider.addEventListener('input', () => updateOpacity(opacitySlider.value));
 
   let dragging = false;
   handle.addEventListener('mousedown', () => { dragging = true; });
