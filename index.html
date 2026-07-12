@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quick Tools</title>
+<meta property="og:title" content="Quick Tools">
+<meta property="og:url" content="https://tools.arnofaure.com">
+<script src="gif.js"></script>
+<script src="ffmpeg/ffmpeg.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1f1f1f;
+    --border: rgba(255,255,255,0.08);
+    --border-hover: rgba(255,255,255,0.18);
+    --text: #e8e8e8;
+    --text-muted: #999999;
+    --text-dim: #5a5a5a;
+    --accent: #e8e8e8;
+    --danger: #e0584a;
+    --radius: 6px;
+    --radius-lg: 10px;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+  button, input { font-family: inherit; }
+  a { color: inherit; }
+
+  /* ---------- TOOLBAR ---------- */
+  #toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(13,13,13,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 0.5px solid var(--border);
+    padding: 10px 20px;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .tb-menu { position: relative; }
+  .tb-menu-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px 4px 0;
+    border-radius: var(--radius);
+    transition: background 0.15s;
+    height: 40px;
+  }
+  .tb-menu-btn:hover, .tb-menu-btn.open { background: var(--surface2); }
+  .tb-menu-btn svg.tb-chevron { color: var(--text-dim); transition: transform 0.15s; flex-shrink: 0; }
+  .tb-menu-btn.open svg.tb-chevron { transform: rotate(180deg); }
+
+  .tb-logo-square {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .tb-logo { height: 24px; width: auto; color: var(--text); display: block; }
+  .tb-beta {
+    font-size: 9px; font-weight: 700; letter-spacing: .03em; color: rgba(255,255,255,0.55);
+    padding: 1px 4px; border: 0.5px solid rgba(255,255,255,0.25); border-radius: 4px; flex-shrink: 0;
+  }
+
+  .tb-menu-heading {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    letter-spacing: .04em; text-transform: uppercase; padding: 4px 8px;
+  }
+
+  .tb-dropdown {
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 220px;
+    background: #1a1a1a;
+    border: 0.5px solid var(--border-hover);
+    border-radius: var(--radius);
+    padding: 6px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.45);
+    z-index: 200;
+  }
+  .tb-dropdown.open { display: flex; }
+  .tb-sep-h { height: 0.5px; background: var(--border); margin: 4px 2px; }
+
+  .tb-btn {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; text-align: left;
+    background: transparent; border: none; border-radius: var(--radius);
+    padding: 7px 8px; font-size: 12.5px; color: var(--text);
+    cursor: pointer; text-decoration: none;
+  }
+  .tb-btn:hover { background: var(--surface2); }
+  .tb-btn svg { flex-shrink: 0; color: var(--text-muted); }
+
+  .tb-page-title {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim);
+  }
+
+  /* ---------- SHELL: sidebar + content ---------- */
+  #app-shell {
+    display: flex;
+    align-items: flex-start;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    gap: 24px;
+  }
+
+  #tool-sidebar {
+    width: 190px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: sticky;
+    top: 76px;
+  }
+  .tool-sidebar-heading {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-dim); padding: 4px 10px 8px;
+  }
+  .tool-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; text-align: left;
+    background: transparent; border: 0.5px solid transparent; border-radius: var(--radius);
+    padding: 9px 10px; font-size: 13px; color: var(--text-muted);
+    cursor: pointer; transition: background .12s, color .12s, border-color .12s;
+  }
+  .tool-item svg { flex-shrink: 0; color: var(--text-dim); transition: color .12s; }
+  .tool-item:hover { background: var(--surface); color: var(--text); }
+  .tool-item.active {
+    background: var(--surface); border-color: var(--border); color: var(--text); font-weight: 600;
+  }
+  .tool-item.active svg { color: var(--text); }
+
+  #tool-content { flex: 1; min-width: 0; }
+  .tool-panel { display: none; }
+  .tool-panel.active { display: block; }
+
+  .tool-header { margin-bottom: 20px; }
+  .tool-header h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; color: var(--text); }
+  .tool-header p { margin: 0; font-size: 12.5px; color: var(--text-dim); }
+
+  /* ---------- Shared components ---------- */
+  .drop {
+    border: 1px dashed var(--border); border-radius: var(--radius-lg); padding: 32px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+    background: var(--surface);
+  }
+  .drop.drag { border-color: var(--border-hover); background: var(--surface2); }
+  .drop p { margin: 0; color: var(--text-muted); font-size: 13px; }
+  .drop span { color: var(--text-dim); }
+  input[type=file] { display: none; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 11px; color: var(--text-dim); letter-spacing: 0.02em; }
+  .field input[type=number] {
+    background: transparent; border: 0.5px solid var(--border); color: var(--text);
+    border-radius: var(--radius); padding: 8px 10px; font-size: 13px; outline: none;
+    transition: border-color .15s;
+  }
+  .field input[type=number]:hover, .field input[type=number]:focus { border-color: var(--border-hover); }
+  .field.full { grid-column: 1/-1; }
+  .checkrow { display: flex; align-items: center; gap: 8px; grid-column: 1/-1; }
+  .checkrow input { width: 16px; height: 16px; accent-color: var(--text); }
+  .checkrow label { font-size: 13px; color: var(--text); }
+
+  button.primary {
+    margin-top: 20px; width: 100%; padding: 11px; border: 0.5px solid var(--border-hover); border-radius: var(--radius);
+    background: var(--text); color: var(--bg); font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: opacity .15s;
+  }
+  button.primary:hover { opacity: .9; }
+  button.primary:disabled { opacity: .35; cursor: default; }
+
+  /* ---------- TOOL: Compare Images ---------- */
+  .uploads { display: flex; gap: 14px; margin-bottom: 20px; }
+  .upload-box {
+    flex: 1; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+    padding: 12px 14px;
+  }
+  .upload-box label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 0.02em; }
+  .upload-box .file-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+    background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius);
+    color: var(--text-muted); font-size: 12px; cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  .upload-box .file-btn:hover { border-color: var(--border-hover); color: var(--text); }
+  .upload-box .file-name { display: block; margin-top: 6px; font-size: 11px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #cmp-stage {
+    position: relative; width: 100%; aspect-ratio: 16/9;
+    background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+    overflow: hidden; display: flex; align-items: center; justify-content: center;
+    user-select: none; touch-action: none;
+  }
+  #cmp-placeholder { color: var(--text-dim); font-size: 13px; }
+  #cmp-stage img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: none; pointer-events: none; }
+  #cmp-wrapB { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; display: none; }
+  #cmp-wrapB img { width: var(--stage-width, 100%); max-width: none; }
+  #cmp-handle {
+    position: absolute; top: 0; left: 50%; width: 2px; height: 100%;
+    background: var(--text); display: none; transform: translateX(-50%); cursor: ew-resize;
+  }
+  #cmp-handle::after {
+    content: ""; position: absolute; top: 50%; left: 50%; width: 34px; height: 34px; border-radius: 50%;
+    background: var(--surface2); border: 0.5px solid var(--border-hover); transform: translate(-50%,-50%);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  #cmp-handle::before {
+    content: "\2194"; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 2; font-size: 14px; color: var(--text);
+  }
+  .cmp-tag {
+    position: absolute; top: 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+    background: rgba(0,0,0,0.6); color: var(--text); padding: 3px 8px; border-radius: 4px;
+    pointer-events: none; display: none;
+  }
+  #cmp-tagA { left: 10px; } #cmp-tagB { right: 10px; }
+  #cmp-slider { width: 100%; margin-top: 16px; accent-color: var(--text); }
+  #cmp-slider:disabled { opacity: 0.35; }
+
+  /* ---------- TOOL: Image to GIF (reused) ---------- */
+  #list { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-direction: column; gap: 6px; }
+  #list li {
+    display: flex; align-items: center; gap: 10px; background: var(--surface);
+    border: 0.5px solid var(--border); border-radius: var(--radius); padding: 6px 10px; font-size: 13px;
+    transition: border-color .15s;
+  }
+  #list li:hover { border-color: var(--border-hover); }
+  #list li img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+  #list li .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  #list li .order { color: var(--text-dim); font-size: 12px; width: 16px; text-align: right; }
+  #list li button { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 2px 6px; }
+  #list li button:hover { color: var(--danger); }
+  #list li .move { cursor: grab; color: var(--text-dim); }
+
+  .controls {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px;
+    padding: 16px; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+  }
+
+  #progressWrap { margin-top: 14px; display: none; }
+  #progressBar { height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  #progressFill { height: 100%; width: 0%; background: var(--text); transition: width .1s; }
+  #progressLabel { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+
+  #result { margin-top: 24px; text-align: center; display: none; }
+  #result img { max-width: 100%; border-radius: var(--radius-lg); border: 0.5px solid var(--border); }
+  #result .actions { display: flex; gap: 10px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  #result a, #result button {
+    display: inline-flex; align-items: center; padding: 8px 16px; background: transparent;
+    border: 0.5px solid var(--border); border-radius: var(--radius); color: var(--text-muted); text-decoration: none; font-size: 12px;
+    cursor: pointer; font-family: inherit; transition: border-color .15s, color .15s, background .15s;
+  }
+  #result a:hover, #result button:hover { border-color: var(--border-hover); color: var(--text); }
+  #result button:disabled { opacity: .35; cursor: default; }
+  #mp4Status { font-size: 12px; color: var(--text-dim); margin-top: 8px; min-height: 16px; }
+
+  footer {
+    text-align: center; font-size: 11px; color: var(--text-dim); padding: 20px 20px 40px;
+  }
+  footer a { color: var(--text-muted); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+
+  @media (max-width: 720px) {
+    #app-shell { flex-direction: column; }
+    #tool-sidebar { width: 100%; flex-direction: row; overflow-x: auto; position: static; }
+    .tool-sidebar-heading { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <div class="tb-menu" id="mainMenuWrap">
+    <button class="tb-menu-btn" id="mainMenuBtn" title="Menu" aria-label="Menu">
+      <span class="tb-logo-square">
+        <svg class="tb-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.7 6.3a4 4 0 0 0-5.6 4.7L3 17.1V21h3.9l6.1-6.1a4 4 0 0 0 4.7-5.6l-2.8 2.8-2.1-.6-.6-2.1 2.8-2.8Z"/>
+        </svg>
+      </span>
+      <span class="tb-beta">BETA</span>
+      <svg class="tb-chevron" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="tb-dropdown" id="mainMenu">
+      <div class="tb-menu-heading">Quick Tools</div>
+      <a class="tb-btn" href="https://storyboard.arnofaure.com/" target="_blank" rel="noopener noreferrer" title="Open the Storyboard app">
+        <svg width="13" height="13" viewBox="0 0 144 263" xmlns="http://www.w3.org/2000/svg">
+          <g transform="matrix(1,0,0,1,-1947.191749,-2025.796858)">
+            <g transform="matrix(0.355122,0,0,0.329408,1336.353603,1440.900366)">
+              <g transform="matrix(8.96689,0,0,9.666856,-6806.729886,-1690.322089)">
+                <path d="M992.777,381.448C990.516,380.083 988.105,379.07 985.545,378.408C982.985,377.747 979.913,377.288 976.329,377.032C976.031,376.99 975.743,376.958 975.465,376.936C975.188,376.915 974.921,376.904 974.665,376.904C973.769,376.904 973.321,377.267 973.321,377.992C973.321,378.419 973.567,378.707 974.057,378.856C974.548,379.006 975.22,379.123 976.073,379.208C977.737,379.422 979.487,379.667 981.321,379.944C983.156,380.222 984.948,380.638 986.697,381.192C988.447,381.747 990.036,382.558 991.465,383.624C992.895,384.691 994.025,386.099 994.857,387.848C995.689,389.598 996.105,391.795 996.105,394.44C996.105,397.384 995.423,430.871 994.057,432.855C992.692,434.839 990.847,436.417 988.521,437.591C986.196,438.764 983.551,439.607 980.585,440.119C977.62,440.631 974.559,440.887 971.401,440.887C967.732,440.929 964.095,440.727 960.489,440.279C956.884,439.831 953.695,439.265 950.921,438.583L952.713,385.032C953.695,385.758 954.868,386.536 956.233,387.368C957.599,388.2 959.455,388.958 961.801,389.64C964.148,390.323 967.241,390.856 971.081,391.24C971.295,391.283 971.497,391.304 971.689,391.304L972.233,391.304C972.703,391.304 973.055,391.24 973.289,391.112C973.524,390.984 973.641,390.707 973.641,390.28C973.641,389.811 973.439,389.512 973.033,389.384C972.628,389.256 971.999,389.128 971.145,389C968.841,388.744 966.548,388.382 964.265,387.912C961.983,387.443 959.903,386.718 958.025,385.736C956.148,384.755 954.644,383.39 953.513,381.64C952.383,379.891 951.817,377.608 951.817,374.792C951.817,370.782 952.767,367.592 954.665,365.224C956.564,362.856 959.135,361.15 962.377,360.104C965.62,359.059 969.247,358.536 973.257,358.536C976.628,358.536 980.148,358.846 983.817,359.464C987.487,360.083 991.113,360.926 994.697,361.992L992.777,381.448Z" fill="currentColor"/>
+              </g>
+            </g>
+          </g>
+        </svg>
+        Storyboard App
+        <span class="tb-beta">BETA</span>
+      </a>
+      <a class="tb-btn" href="https://moodboard.arnofaure.com/" target="_blank" rel="noopener noreferrer" title="Open the Moodboard app">
+        <svg width="13" height="13" viewBox="0 0 362 661" xmlns="http://www.w3.org/2000/svg">
+          <g transform="matrix(1,0,0,1,-4844.154675,-209.556655)">
+            <g transform="matrix(1,0,0,1,4484.954004,0)">
+              <g transform="matrix(7.335506,0,0,7.335506,-6600.710179,-2480.126447)">
+                <path d="M965.065,456.761L948.798,456.761L949.784,366.666L970.98,366.666L973.281,380.852L973.773,380.852L976.074,366.666L997.106,366.666L998.092,456.761L981.825,456.761L981.825,386.932L981.332,386.932L977.881,456.761L969.008,456.761L965.558,386.384L965.065,386.384L965.065,456.761Z" fill="currentColor"/>
+              </g>
+            </g>
+          </g>
+        </svg>
+        Moodboard App
+        <span class="tb-beta">BETA</span>
+      </a>
+      <a class="tb-btn" href="https://time.arnofaure.com/" target="_blank" rel="noopener noreferrer" title="Open the Time Tracker app">
+        <svg width="13" height="13" viewBox="0 0 362 661" xmlns="http://www.w3.org/2000/svg">
+          <g transform="matrix(1,0,0,1,-3492.815188,-209.556655)">
+            <g transform="matrix(1,0,0,1,3133.614517,0)">
+              <g transform="matrix(9.169382,0,0,9.169382,-8385.636614,-3152.547222)">
+                <path d="M993.135,366.666L993.135,382.933L982.564,382.933L982.564,438.742L964.325,438.742L964.325,382.933L953.7,382.933L953.7,366.666L993.135,366.666Z" fill="currentColor"/>
+              </g>
+            </g>
+          </g>
+        </svg>
+        Time Tracker
+        <span class="tb-beta">BETA</span>
+      </a>
+      <a class="tb-btn" href="https://blocking.arnofaure.com/" target="_blank" rel="noopener noreferrer" title="Open the Blocking app">
+        <svg width="13" height="13" viewBox="0 0 144 263" xmlns="http://www.w3.org/2000/svg">
+          <g transform="matrix(1,0,0,1,-569.299967,-2025.796858)">
+            <g transform="matrix(0.355122,0,0,0.329408,-42.107321,1440.900366)">
+              <g transform="matrix(47.026346,0,0,50.697276,-16005.026153,-16845.866285)">
+                <path d="M384.633,371.747C384.913,371.963 385.135,372.251 385.299,372.611C385.463,372.971 385.545,373.411 385.545,373.931C385.545,374.595 385.413,381.582 385.149,381.966C384.885,382.35 384.537,382.62 384.105,382.776C383.673,382.932 383.209,383.01 382.713,383.01L376.953,383.01L376.953,367.307L382.173,367.307C382.693,367.307 383.185,367.397 383.649,367.577C384.113,367.757 384.491,368.039 384.783,368.423C385.075,368.807 385.221,369.299 385.221,369.899C385.221,370.347 385.171,370.721 385.071,371.021C384.971,371.321 384.825,371.563 384.633,371.747ZM381.513,370.343L380.625,370.343L380.625,370.991L381.561,370.991C381.625,370.991 381.695,370.971 381.771,370.931C381.847,370.891 381.885,370.807 381.885,370.679C381.885,370.543 381.839,370.453 381.747,370.409C381.655,370.365 381.577,370.343 381.513,370.343ZM380.625,373.499L381.873,373.499C381.937,373.499 382.007,373.479 382.083,373.439C382.159,373.399 382.197,373.315 382.197,373.187C382.197,373.051 382.151,372.961 382.059,372.917C381.967,372.873 381.889,372.851 381.825,372.851L380.625,372.851L380.625,373.499Z" fill="currentColor"/>
+              </g>
+            </g>
+          </g>
+        </svg>
+        Blocking App
+        <span class="tb-beta">BETA</span>
+      </a>
+    </div>
+  </div>
+  <span class="tb-page-title">Quick Tools</span>
+</div>
+
+<div id="app-shell">
+  <nav id="tool-sidebar">
+    <div class="tool-sidebar-heading">Tools</div>
+    <button class="tool-item active" data-tool="compare">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m0 8v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3m0-8V5a2 2 0 0 0-2-2h-3"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+      Compare Images
+    </button>
+    <button class="tool-item" data-tool="gif">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      Image to GIF
+    </button>
+  </nav>
+
+  <main id="tool-content">
+
+    <!-- ================= TOOL: Compare Images ================= -->
+    <section id="tool-compare" class="tool-panel active">
+      <div class="tool-header">
+        <h2>Compare Images</h2>
+        <p>Load a before/after image and drag the handle to compare.</p>
+      </div>
+
+      <div class="uploads">
+        <div class="upload-box">
+          <label for="cmp-fileA">Image A — before</label>
+          <label class="file-btn" for="cmp-fileA">Choose file</label>
+          <input type="file" id="cmp-fileA" accept="image/*">
+          <span class="file-name" id="cmp-fileA-name"></span>
+        </div>
+        <div class="upload-box">
+          <label for="cmp-fileB">Image B — after</label>
+          <label class="file-btn" for="cmp-fileB">Choose file</label>
+          <input type="file" id="cmp-fileB" accept="image/*">
+          <span class="file-name" id="cmp-fileB-name"></span>
+        </div>
+      </div>
+
+      <div id="cmp-stage">
+        <p id="cmp-placeholder">Load both images to compare</p>
+        <img id="cmp-imgA" alt="Before">
+        <div id="cmp-wrapB">
+          <img id="cmp-imgB" alt="After">
+        </div>
+        <div id="cmp-tagA" class="cmp-tag">A</div>
+        <div id="cmp-tagB" class="cmp-tag">B</div>
+        <div id="cmp-handle"></div>
+      </div>
+
+      <input type="range" id="cmp-slider" min="0" max="100" value="50" disabled>
+    </section>
+
+    <!-- ================= TOOL: Image to GIF ================= -->
+    <section id="tool-gif" class="tool-panel">
+      <div class="tool-header">
+        <h2>Image to GIF</h2>
+        <p>Drag your images in order, adjust the timing, export as GIF or MP4.</p>
+      </div>
+
+      <div class="drop" id="drop">
+        <p>Drop your images here, or click to choose<br><span style="font-size:12px;">JPG, PNG, WebP — reorder afterwards</span></p>
+        <input type="file" id="fileInput" accept="image/*" multiple>
+      </div>
+
+      <ul id="list"></ul>
+
+      <div class="controls">
+        <div class="field">
+          <label>Delay between frames (ms)</label>
+          <input type="number" id="delay" value="300" min="10">
+        </div>
+        <div class="field">
+          <label>Quality (1 = best, 30 = worst)</label>
+          <input type="number" id="quality" value="10" min="1" max="30">
+        </div>
+        <div class="field">
+          <label>Max width (px, 0 = original)</label>
+          <input type="number" id="maxWidth" value="800" min="0">
+        </div>
+        <div class="field">
+          <label>Repeat (0 = infinite)</label>
+          <input type="number" id="repeat" value="0" min="0">
+        </div>
+        <div class="checkrow">
+          <input type="checkbox" id="pingpong">
+          <label for="pingpong">Ping-pong (back and forth)</label>
+        </div>
+      </div>
+
+      <button class="primary" id="generateBtn" disabled>Generate GIF</button>
+
+      <div id="progressWrap">
+        <div id="progressBar"><div id="progressFill"></div></div>
+        <div id="progressLabel">Preparing…</div>
+      </div>
+
+      <div id="result">
+        <img id="resultImg" alt="Generated GIF">
+        <div class="actions">
+          <a id="downloadLink" download="animation.gif">Download GIF</a>
+          <button id="mp4Btn">Convert to MP4</button>
+          <a id="mp4DownloadLink" download="animation.mp4" style="display:none;">Download MP4</a>
+        </div>
+        <div id="mp4Status"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  Quick Tools — a growing set of small local, free utilities. Nothing you load ever leaves your browser.<br>
+  © 2026 Concept by <a href="https://arnofaure.com" target="_blank" rel="noopener">Arno Faure</a> · Licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>
+</footer>
+
+<script>
+// ---------- Main menu ----------
+(function() {
+  var btn = document.getElementById('mainMenuBtn');
+  var menu = document.getElementById('mainMenu');
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var open = menu.classList.toggle('open');
+    btn.classList.toggle('open', open);
+  });
+  document.addEventListener('click', function(e) {
+    if (!document.getElementById('mainMenuWrap').contains(e.target)) {
+      menu.classList.remove('open');
+      btn.classList.remove('open');
+    }
+  });
+})();
+
+// ---------- Tool switcher ----------
+(function() {
+  var items = document.querySelectorAll('.tool-item');
+  items.forEach(function(item) {
+    item.addEventListener('click', function() {
+      var tool = item.getAttribute('data-tool');
+      items.forEach(function(i) { i.classList.toggle('active', i === item); });
+      document.querySelectorAll('.tool-panel').forEach(function(panel) {
+        panel.classList.toggle('active', panel.id === 'tool-' + tool);
+      });
+    });
+  });
+})();
+
+// ================= TOOL: Compare Images =================
+(function() {
+  const fileA = document.getElementById('cmp-fileA');
+  const fileB = document.getElementById('cmp-fileB');
+  const imgA = document.getElementById('cmp-imgA');
+  const imgB = document.getElementById('cmp-imgB');
+  const wrapB = document.getElementById('cmp-wrapB');
+  const handle = document.getElementById('cmp-handle');
+  const slider = document.getElementById('cmp-slider');
+  const stage = document.getElementById('cmp-stage');
+  const placeholder = document.getElementById('cmp-placeholder');
+  const tagA = document.getElementById('cmp-tagA');
+  const tagB = document.getElementById('cmp-tagB');
+  const nameA = document.getElementById('cmp-fileA-name');
+  const nameB = document.getElementById('cmp-fileB-name');
+
+  let loadedA = false, loadedB = false;
+
+  function checkReady() {
+    if (loadedA && loadedB) {
+      placeholder.style.display = 'none';
+      imgA.style.display = 'block';
+      imgB.style.display = 'block';
+      wrapB.style.display = 'block';
+      handle.style.display = 'block';
+      tagA.style.display = 'block';
+      tagB.style.display = 'block';
+      slider.disabled = false;
+      syncWidth();
+      updatePosition(slider.value);
+    }
+  }
+
+  function syncWidth() {
+    const rect = stage.getBoundingClientRect();
+    wrapB.style.setProperty('--stage-width', rect.width + 'px');
+  }
+
+  function updatePosition(percent) {
+    wrapB.style.width = percent + '%';
+    handle.style.left = percent + '%';
+  }
+
+  fileA.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    nameA.textContent = file.name;
+    imgA.src = URL.createObjectURL(file);
+    imgA.onload = () => { loadedA = true; checkReady(); };
+  });
+
+  fileB.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    nameB.textContent = file.name;
+    imgB.src = URL.createObjectURL(file);
+    imgB.onload = () => { loadedB = true; checkReady(); };
+  });
+
+  slider.addEventListener('input', () => updatePosition(slider.value));
+
+  let dragging = false;
+  handle.addEventListener('mousedown', () => { dragging = true; });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const rect = stage.getBoundingClientRect();
+    let percent = ((e.clientX - rect.left) / rect.width) * 100;
+    percent = Math.max(0, Math.min(100, percent));
+    slider.value = percent;
+    updatePosition(percent);
+  });
+
+  stage.addEventListener('touchmove', (e) => {
+    if (!loadedA || !loadedB) return;
+    const touch = e.touches[0];
+    const rect = stage.getBoundingClientRect();
+    let percent = ((touch.clientX - rect.left) / rect.width) * 100;
+    percent = Math.max(0, Math.min(100, percent));
+    slider.value = percent;
+    updatePosition(percent);
+  });
+
+  window.addEventListener('resize', () => { if (loadedA && loadedB) syncWidth(); });
+})();
+
+// ================= TOOL: Image to GIF =================
+(function() {
+let images = []; // {file, url, id}
+let idCounter = 0;
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const list = document.getElementById('list');
+const generateBtn = document.getElementById('generateBtn');
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(files) {
+  [...files].filter(f => f.type.startsWith('image/')).forEach(file => {
+    const id = idCounter++;
+    const url = URL.createObjectURL(file);
+    images.push({ file, url, id });
+  });
+  renderList();
+}
+
+function renderList() {
+  list.innerHTML = '';
+  images.forEach((img, i) => {
+    const li = document.createElement('li');
+    li.draggable = true;
+    li.dataset.id = img.id;
+    li.innerHTML = `
+      <span class="move">⠿</span>
+      <span class="order">${i + 1}</span>
+      <img src="${img.url}">
+      <span class="name">${img.file.name}</span>
+      <button data-id="${img.id}">✕</button>
+    `;
+    li.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', img.id);
+      li.style.opacity = '0.4';
+    });
+    li.addEventListener('dragend', () => li.style.opacity = '1');
+    li.addEventListener('dragover', e => e.preventDefault());
+    li.addEventListener('drop', e => {
+      e.preventDefault();
+      const draggedId = parseInt(e.dataTransfer.getData('text/plain'));
+      reorder(draggedId, img.id);
+    });
+    li.querySelector('button').addEventListener('click', () => {
+      images = images.filter(x => x.id !== img.id);
+      renderList();
+    });
+    list.appendChild(li);
+  });
+  generateBtn.disabled = images.length < 2;
+}
+
+function reorder(draggedId, targetId) {
+  const draggedIdx = images.findIndex(x => x.id === draggedId);
+  const targetIdx = images.findIndex(x => x.id === targetId);
+  const [item] = images.splice(draggedIdx, 1);
+  images.splice(targetIdx, 0, item);
+  renderList();
+}
+
+document.getElementById('generateBtn').addEventListener('click', generateGif);
+
+async function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function generateGif() {
+  generateBtn.disabled = true;
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('result').style.display = 'none';
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  progressFill.style.width = '0%';
+  progressLabel.textContent = 'Loading images…';
+
+  const delay = parseInt(document.getElementById('delay').value) || 300;
+  const quality = parseInt(document.getElementById('quality').value) || 10;
+  const maxWidth = parseInt(document.getElementById('maxWidth').value) || 0;
+  const repeat = parseInt(document.getElementById('repeat').value) || 0;
+  const pingpong = document.getElementById('pingpong').checked;
+
+  const loaded = await Promise.all(images.map(i => loadImage(i.url)));
+
+  let w = loaded[0].naturalWidth;
+  let h = loaded[0].naturalHeight;
+  if (maxWidth > 0 && w > maxWidth) {
+    h = Math.round(h * (maxWidth / w));
+    w = maxWidth;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  const gif = new GIF({
+    workers: 2,
+    quality: quality,
+    width: w,
+    height: h,
+    repeat: repeat,
+    workerScript: 'gif.worker.js'
+  });
+
+  let frameSequence = loaded;
+  if (pingpong) {
+    frameSequence = loaded.concat([...loaded].reverse().slice(1, -1));
+  }
+
+  frameSequence.forEach(img => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    gif.addFrame(ctx, { copy: true, delay: delay });
+  });
+
+  gif.on('progress', p => {
+    progressFill.style.width = Math.round(p * 100) + '%';
+    progressLabel.textContent = 'Encoding… ' + Math.round(p * 100) + '%';
+  });
+
+  gif.on('finished', blob => {
+    lastGifBlob = blob;
+    const url = URL.createObjectURL(blob);
+    document.getElementById('resultImg').src = url;
+    document.getElementById('downloadLink').href = url;
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('mp4DownloadLink').style.display = 'none';
+    document.getElementById('mp4Status').textContent = '';
+    progressLabel.textContent = 'Done.';
+    generateBtn.disabled = false;
+  });
+
+  gif.render();
+}
+
+let lastGifBlob = null;
+let ffmpegInstance = null;
+
+async function fetchFile(input) {
+  if (input instanceof Blob) return new Uint8Array(await input.arrayBuffer());
+  const res = await fetch(input);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+async function toBlobURL(url, mimeType) {
+  const res = await fetch(url);
+  const buf = await res.arrayBuffer();
+  return URL.createObjectURL(new Blob([buf], { type: mimeType }));
+}
+
+async function getFfmpeg() {
+  if (ffmpegInstance) return ffmpegInstance;
+  const { FFmpeg } = FFmpegWASM;
+  const ffmpeg = new FFmpeg();
+  const mp4Status = document.getElementById('mp4Status');
+  ffmpeg.on('log', ({ message }) => { mp4Status.textContent = message; });
+  await ffmpeg.load({
+    coreURL: await toBlobURL('ffmpeg/ffmpeg-core.js', 'text/javascript'),
+    wasmURL: await toBlobURL('ffmpeg/ffmpeg-core.wasm', 'application/wasm'),
+  });
+  ffmpegInstance = ffmpeg;
+  return ffmpeg;
+}
+
+document.getElementById('mp4Btn').addEventListener('click', async () => {
+  if (!lastGifBlob) return;
+  const mp4Btn = document.getElementById('mp4Btn');
+  const mp4Status = document.getElementById('mp4Status');
+  const mp4Link = document.getElementById('mp4DownloadLink');
+  mp4Btn.disabled = true;
+  mp4Link.style.display = 'none';
+  mp4Status.textContent = 'Loading ffmpeg…';
+  try {
+    const ffmpeg = await getFfmpeg();
+    mp4Status.textContent = 'Converting…';
+    await ffmpeg.writeFile('input.gif', await fetchFile(lastGifBlob));
+    await ffmpeg.exec([
+      '-i', 'input.gif',
+      '-movflags', 'faststart',
+      '-pix_fmt', 'yuv420p',
+      '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+      'output.mp4'
+    ]);
+    const data = await ffmpeg.readFile('output.mp4');
+    const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+    mp4Link.href = URL.createObjectURL(mp4Blob);
+    mp4Link.style.display = 'inline-block';
+    mp4Status.textContent = 'MP4 ready.';
+  } catch (err) {
+    console.error(err);
+    mp4Status.textContent = 'Conversion failed.';
+  } finally {
+    mp4Btn.disabled = false;
+  }
+});
+})();
+</script>
+
+</body>
+</html>
