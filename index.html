@@ -17,8 +17,8 @@
     --border: rgba(255,255,255,0.08);
     --border-hover: rgba(255,255,255,0.18);
     --text: #e8e8e8;
-    --text-muted: #999999;
-    --text-dim: #5a5a5a;
+    --text-muted: #aaaaaa;
+    --text-dim: #808080;
     --accent: #e8e8e8;
     --danger: #e0584a;
     --radius: 6px;
@@ -218,7 +218,9 @@
     user-select: none; touch-action: none;
   }
   #cmp-placeholder { color: var(--text-dim); font-size: 13px; }
-  #cmp-stage img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: none; pointer-events: none; }
+  #cmp-stage img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: none; pointer-events: none; transform-origin: 0 0; }
+  #cmp-stage.zoomed { cursor: grab; }
+  #cmp-stage.zoomed.panning { cursor: grabbing; }
   #cmp-wrapB { position: absolute; top: 0; left: 0; width: 50%; height: 100%; overflow: hidden; display: none; }
   #cmp-wrapB img { width: var(--stage-width, 100%); max-width: none; }
   #cmp-handle {
@@ -244,6 +246,22 @@
   #cmp-slider:disabled { opacity: 0.35; }
   #cmp-opacity { width: 100%; accent-color: var(--text); }
   #cmp-opacity:disabled { opacity: 0.35; }
+
+  .cmp-zoom-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 12px; }
+  .cmp-zoom-btn {
+    width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+    background: var(--surface2); border: 0.5px solid var(--border); border-radius: 50%;
+    color: var(--text-muted); font-size: 14px; line-height: 1; cursor: pointer;
+  }
+  .cmp-zoom-btn:hover { border-color: var(--border-hover); color: var(--text); }
+  .cmp-zoom-btn:disabled { opacity: 0.35; cursor: default; }
+  #cmp-zoom-value { font-size: 11px; color: var(--text-dim); min-width: 36px; text-align: center; }
+  #cmp-zoom-reset {
+    padding: 5px 10px; background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius);
+    color: var(--text-muted); font-size: 11px; cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  #cmp-zoom-reset:hover { border-color: var(--border-hover); color: var(--text); }
+  #cmp-zoom-reset:disabled { opacity: 0.35; cursor: default; }
 
   /* ---------- TOOL: Image to GIF (reused) ---------- */
   #list { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-direction: column; gap: 6px; }
@@ -415,6 +433,13 @@
         <div id="cmp-handle"></div>
       </div>
 
+      <div class="cmp-zoom-controls">
+        <button type="button" id="cmp-zoom-out" class="cmp-zoom-btn" title="Zoom out" disabled>&minus;</button>
+        <span id="cmp-zoom-value">100%</span>
+        <button type="button" id="cmp-zoom-in" class="cmp-zoom-btn" title="Zoom in" disabled>+</button>
+        <button type="button" id="cmp-zoom-reset" disabled>Reset zoom</button>
+      </div>
+
       <input type="range" id="cmp-slider" min="0" max="100" value="50" disabled>
 
       <div class="field" id="cmp-opacity-field" style="margin-top:14px;">
@@ -535,8 +560,42 @@
   const nameB = document.getElementById('cmp-fileB-name');
   const opacitySlider = document.getElementById('cmp-opacity');
   const opacityValue = document.getElementById('cmp-opacity-value');
+  const zoomInBtn = document.getElementById('cmp-zoom-in');
+  const zoomOutBtn = document.getElementById('cmp-zoom-out');
+  const zoomResetBtn = document.getElementById('cmp-zoom-reset');
+  const zoomValue = document.getElementById('cmp-zoom-value');
 
   let loadedA = false, loadedB = false;
+
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 6;
+  let zoom = 1;
+  let panX = 0;
+  let panY = 0;
+
+  function applyTransform() {
+    const t = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    imgA.style.transform = t;
+    imgB.style.transform = t;
+    zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+    stage.classList.toggle('zoomed', zoom > 1);
+  }
+
+  function resetZoom() {
+    zoom = 1; panX = 0; panY = 0;
+    applyTransform();
+  }
+
+  function setZoom(newZoom, originX, originY) {
+    newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
+    if (newZoom === zoom) return;
+    const lx = (originX - panX) / zoom;
+    const ly = (originY - panY) / zoom;
+    panX = originX - lx * newZoom;
+    panY = originY - ly * newZoom;
+    zoom = newZoom;
+    applyTransform();
+  }
 
   function checkReady() {
     if (loadedA && loadedB) {
@@ -549,9 +608,13 @@
       tagB.style.display = 'block';
       slider.disabled = false;
       opacitySlider.disabled = false;
+      zoomInBtn.disabled = false;
+      zoomOutBtn.disabled = false;
+      zoomResetBtn.disabled = false;
       syncWidth();
       updatePosition(slider.value);
       updateOpacity(opacitySlider.value);
+      resetZoom();
     }
   }
 
@@ -612,6 +675,43 @@
   });
 
   window.addEventListener('resize', () => { if (loadedA && loadedB) syncWidth(); });
+
+  stage.addEventListener('wheel', (e) => {
+    if (!loadedA || !loadedB) return;
+    e.preventDefault();
+    const rect = stage.getBoundingClientRect();
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    setZoom(zoom * factor, e.clientX - rect.left, e.clientY - rect.top);
+  }, { passive: false });
+
+  zoomInBtn.addEventListener('click', () => {
+    const rect = stage.getBoundingClientRect();
+    setZoom(zoom * 1.4, rect.width / 2, rect.height / 2);
+  });
+  zoomOutBtn.addEventListener('click', () => {
+    const rect = stage.getBoundingClientRect();
+    setZoom(zoom / 1.4, rect.width / 2, rect.height / 2);
+  });
+  zoomResetBtn.addEventListener('click', resetZoom);
+
+  let panning = false;
+  let panStart = { x: 0, y: 0, panX: 0, panY: 0 };
+  stage.addEventListener('mousedown', (e) => {
+    if (!loadedA || !loadedB || zoom <= 1 || e.target === handle) return;
+    panning = true;
+    panStart = { x: e.clientX, y: e.clientY, panX, panY };
+    stage.classList.add('panning');
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!panning) return;
+    panX = panStart.panX + (e.clientX - panStart.x);
+    panY = panStart.panY + (e.clientY - panStart.y);
+    applyTransform();
+  });
+  window.addEventListener('mouseup', () => {
+    panning = false;
+    stage.classList.remove('panning');
+  });
 })();
 
 // ================= TOOL: Image to GIF =================
